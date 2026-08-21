@@ -18,7 +18,7 @@
 
   // Globally unique within the Cloudflare account. Placeholder values below are
   // syntactically valid so tooling runs on a fresh clone — they are NOT a target.
-  "name": "adsbookcms-your-store",
+  "name": "skincarebpom",
   "main": "./src/worker.ts",
 
 
@@ -42,7 +42,7 @@
   },
 
   // Keep false so an install never gets an unreviewed *.workers.dev endpoint.
-  "workers_dev": false,
+  "workers_dev": true,
   // Hourly evaluation catches a stalled conversion outbox even when no operator
   // opens the dashboard. Alert transitions are deduplicated in the install's KV.
   "triggers": {
@@ -56,21 +56,21 @@
   "kv_namespaces": [
     {
       "binding": "SESSION",
-      "id": "00000000000000000000000000000000"
+      "id": "95484dab312e49ac9bb1c2da27d721b0"
     }
   ],
   "d1_databases": [
     {
       "binding": "OMS_DB",
-      "database_name": "adsbookcms-your-store-d1",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_name": "skincarebpom-d1",
+      "database_id": "55af8a11-d798-4bf8-ae49-fa9a764e9dcb",
       "migrations_dir": "src/db/migrations"
     }
   ],
   "r2_buckets": [
     {
       "binding": "ASSET_BUCKET",
-      "bucket_name": "adsbookcms-your-store-assets"
+      "bucket_name": "skincarebpom-assets"
     }
   ],
   "ai": {
@@ -85,23 +85,21 @@
     "head_sampling_rate": 1
   },
 
-  "routes": [
-    {
-      "pattern": "example.com",
-      "custom_domain": true
-    },
-    {
-      "pattern": "www.example.com",
-      "custom_domain": true
-    }
-  ],
+  // The skincarebpom.com zone does not exist in this Cloudflare account yet, so
+  // a custom domain cannot be attached and `wrangler deploy` would fail on it.
+  // Restore this block, set workers_dev back to false, and redeploy once the
+  // zone is added.
+  // "routes": [
+  //   { "pattern": "skincarebpom.com", "custom_domain": true },
+  //   { "pattern": "www.skincarebpom.com", "custom_domain": true }
+  // ],
 
   // These are read at BUILD time through import.meta.env, not at runtime, so a
   // change here only takes effect after `npm run build`. Redeploying an already
   // built bundle with new vars changes nothing. See ARCHITECTURE.md §5.
   "vars": {
-    "PUBLIC_SITE_NAME": "Your Store",
-    "PUBLIC_SITE_URL": "https://example.com",
+    "PUBLIC_SITE_NAME": "Skincare BPOM",
+    "PUBLIC_SITE_URL": "https://skincarebpom.com",
     // Deliberately empty, like the tagline below. A placeholder here becomes
     // the meta description Google prints under the store, and the second half
     // of the home page <title>.
@@ -110,8 +108,8 @@
     // every unconfigured store's <title>, which is how a fresh install came to
     // announce itself as "Toko Anda — Belum Dikonfigurasi".
     "PUBLIC_SITE_TAGLINE": "",
-    "PUBLIC_ADMIN_NAME": "AdsBookCMS Admin",
-    "PUBLIC_EMBED_ALLOWED_ORIGINS": "https://example.com",
+    "PUBLIC_ADMIN_NAME": "Skincare BPOM Admin",
+    "PUBLIC_EMBED_ALLOWED_ORIGINS": "https://skincarebpom.com",
 
     // Root-relative or absolute. Replace the placeholder wordmark in
     // public/images/ with the store's own brand assets.
