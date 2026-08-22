@@ -26,7 +26,10 @@ import {
   RefreshCw,
   RotateCcw,
 } from "lucide-react";
-import { resolveAdminDateSelection } from "../../lib/admin-date-filter";
+import {
+  ADMIN_DEFAULT_DATE_FILTER,
+  resolveAdminDateSelection,
+} from "../../lib/admin-date-filter";
 import {
   AdminDateRangeFilter,
   type AdminDateSelection,
@@ -42,9 +45,13 @@ const DASHBOARD_HIDDEN_PRESETS = ["90d", "180d"] as const;
 
 type AnalyticsData = {
   total_revenue: number;
+  collected_revenue: number;
   total_orders: number;
+  live_orders: number;
+  online_orders: number;
   conversion_rate: number;
   rts_rate: number;
+  rts_base: number;
   cod_percentage: number;
   transfer_percentage: number;
   qris_percentage: number;
@@ -73,6 +80,15 @@ const currency = new Intl.NumberFormat("id-ID", {
   currency: "IDR",
   maximumFractionDigits: 0,
 }).format;
+/** Axis ticks: "Rp1,2jt", "Rp450rb", "Rp0" — never five identical labels. */
+const compactRupiah = (value: number) => {
+  if (value >= 1_000_000) {
+    const m = value / 1_000_000;
+    return `Rp${m.toLocaleString("id-ID", { maximumFractionDigits: m < 10 ? 1 : 0 })}jt`;
+  }
+  if (value >= 1_000) return `Rp${Math.round(value / 1_000)}rb`;
+  return `Rp${Math.round(value)}`;
+};
 const percentage = (value: number) =>
   `${value.toLocaleString("id-ID", { maximumFractionDigits: 1 })}%`;
 
@@ -99,7 +115,7 @@ export function AnalyticsDashboard({ showPaymentsLink = false }: { showPaymentsL
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [dateSelection, setDateSelection] = useState<AdminDateSelection>({
-    filter: "7d",
+    filter: ADMIN_DEFAULT_DATE_FILTER,
     start: "",
     end: "",
   });
@@ -151,9 +167,13 @@ export function AnalyticsDashboard({ showPaymentsLink = false }: { showPaymentsL
         };
         setData({
           total_revenue: Number(source.total_revenue) || 0,
+          collected_revenue: Number(source.collected_revenue) || 0,
           total_orders: Number(source.total_orders) || 0,
+          live_orders: Number(source.live_orders) || 0,
+          online_orders: Number(source.online_orders) || 0,
           conversion_rate: Number(source.conversion_rate) || 0,
           rts_rate: Number(source.rts_rate) || 0,
+          rts_base: Number(source.rts_base) || 0,
           cod_percentage: Number(source.cod_percentage) || 0,
           transfer_percentage: Number(source.transfer_percentage) || 0,
           qris_percentage: Number(source.qris_percentage) || 0,
@@ -220,23 +240,31 @@ export function AnalyticsDashboard({ showPaymentsLink = false }: { showPaymentsL
     {
       label: "Omset",
       value: currency(data.total_revenue),
-      note: "Pendapatan pada periode aktif",
+      // Not "pendapatan": this is order value still in play, before payment.
+      // Cancelled orders and failed payments are already excluded.
+      note: `Nilai ${data.live_orders.toLocaleString("id-ID")} order aktif · bersih diterima ${currency(data.collected_revenue)}`,
       icon: BadgeDollarSign,
       tone: "text-emerald-700",
       iconTone: "bg-blue-50 text-blue-700",
     },
     {
       label: "Pesanan",
-      value: data.total_orders.toLocaleString("id-ID"),
-      note: "Order masuk terverifikasi",
+      // The big number is orders still in play, consistent with Omset above
+      // it. What came in and then dropped out is the note, not the headline.
+      value: data.live_orders.toLocaleString("id-ID"),
+      note:
+        data.total_orders === data.live_orders
+          ? "Order aktif pada periode ini"
+          : `Dari ${data.total_orders.toLocaleString("id-ID")} masuk · ${(data.total_orders - data.live_orders).toLocaleString("id-ID")} batal/gagal/retur`,
       icon: PackageCheck,
       tone: "text-slate-950",
       iconTone: "bg-blue-50 text-blue-700",
     },
     {
-      label: "Pembayaran berhasil",
+      label: "Pembayaran online lunas",
       value: percentage(data.conversion_rate),
-      note: "Order dengan status pembayaran berhasil",
+      // COD is paid on delivery and is excluded from the base on purpose.
+      note: `Dari ${data.online_orders.toLocaleString("id-ID")} order non-COD`,
       icon: CircleCheckBig,
       tone: "text-slate-950",
       iconTone: "bg-blue-50 text-blue-700",
@@ -244,7 +272,10 @@ export function AnalyticsDashboard({ showPaymentsLink = false }: { showPaymentsL
     {
       label: "Return to Sender",
       value: percentage(data.rts_rate),
-      note: "Rasio pesanan dikembalikan",
+      note:
+        data.rts_base > 0
+          ? `Dari ${data.rts_base.toLocaleString("id-ID")} kiriman selesai`
+          : "Belum ada kiriman yang selesai",
       icon: RotateCcw,
       tone: data.rts_rate > 10 ? "text-rose-700" : "text-slate-950",
       iconTone:
@@ -296,7 +327,7 @@ export function AnalyticsDashboard({ showPaymentsLink = false }: { showPaymentsL
           <div>
             <p className="text-xs font-medium text-slate-900">Periode laporan</p>
             <p className="text-[11px] text-slate-500">
-              Semua metrik mengikuti periode ini; default 7 hari terakhir (WIB).
+              Semua metrik mengikuti periode ini; dibuka pada bulan berjalan (WIB).
             </p>
           </div>
         </div>
@@ -419,9 +450,11 @@ export function AnalyticsDashboard({ showPaymentsLink = false }: { showPaymentsL
                         dy={10}
                       />
                       <YAxis
-                        tickFormatter={(value) =>
-                          `Rp${(value / 1_000_000).toFixed(0)}jt`
-                        }
+                        // Recharts defaults the axis to 60px, sized for the old
+                        // "Rp1jt" ticks; "Rp1,4jt" and "Rp700rb" clipped to
+                        // "p700rb" at that width. Widened, not narrowed.
+                        width={72}
+                        tickFormatter={(value) => compactRupiah(Number(value))}
                         tickLine={false}
                         axisLine={false}
                         tick={{ fontSize: 10, fill: "#64748b" }}

@@ -3344,3 +3344,531 @@ dates and an unknown preset with a stated 422/400, and the order list returned
 active period legible on the closed trigger, the panel stacking on the phone,
 the dashboard's 31-day cap stated where the lists say 180, and an empty console
 at both widths.
+
+## 2026-08-22 — A21: a landing page that becomes the product page, and the loop that proved the design wrong
+
+Asked for as a toggle on the landing-page list: let a landing page replace a
+product page. Refined mid-build to "when it does, its slug follows
+`/produk/<namaproduk>`" — which is a stronger requirement than it sounds,
+because it means the landing page's own URL has to stop being live.
+
+**The shape.** `landing_pages.is_product_page`, with a partial unique index
+`WHERE is_product_page = 1`. Unclaimed drafts are not in the index at all, so
+any number may target one product while only one may hold its page. The
+interface does not have to remember the rule.
+
+**The loop.** The first implementation had `/produk/<slug>` rewrite to the
+landing route, and the landing route decide "am I being handed off?" by reading
+`Astro.url.pathname`. That assumption was wrong: a rewrite does not carry the
+original path, so the landing route saw its own slug, concluded it was a direct
+visit, and redirected back to the product URL — which rewrote again. Measured
+with `curl -L`: fifty redirects before the client gave up, on the store's
+product page. It was caught because the flow was exercised against a running
+install rather than reasoned about; every unit test and the build were green
+throughout. The hand-off is now carried by an `x-adsbook-product-page` header
+on the rewritten request, and the old assumption is written into the code as a
+warning rather than deleted silently.
+
+**Four states, all verified live.** Claimed: `/produk/<slug>` renders the
+landing page, canonical points at the product URL, no redirect. The landing
+slug: exactly one `308` to the product URL. Unpublished: the product URL falls
+back to the normal product template — a product must never 404 because a
+landing page went away. Released: the landing page stands alone again on its
+own slug with its own canonical, and the product URL returns to its template.
+
+**A gap found on the way.** `.lp-section` is the wrapper every operator-authored
+HTML block renders into, and it was styled nowhere in the repository — those
+sections had no vertical rhythm, no type contract, and no protection against a
+pasted image or table breaking the 480 px column.
+`src/styles/landing-pages/landing.css` now owns that surface and is imported by
+the catch-all, so it is a real fix rather than scaffolding.
+
+**The doc was wrong about URLs.** `docs/LANDING-PAGES.md` told authors to put
+native routes at `src/pages/landing/<slug>.astro`, answering `/landing/promo`.
+Landing pages answer at `domain/<slug>` with no prefix. It now states that, the
+static-beats-dynamic route precedence that makes it work, and the hazard it
+creates: a native file silently shadows a CMS page of the same slug, with no
+warning anywhere. It also records the product-page takeover rules and what the
+still-unbuilt native registry (A-133) will have to read, so a native page
+written today already fits it.
+
+**Verification.** `npm run check` 367 files / 0 errors · `npm test` 477 / 477
+(3 new on the claim invariant) · `npm run build` complete, plus the four live
+URL states above. Test data was removed from the local database afterwards. No
+deployment or remote D1 mutation occurred.
+
+## 2026-08-22 — Audit pass over A20 and A21, and the guarantee that was not true
+
+Two adversarial reviews of the work merged earlier the same day, run before
+anything else was built on top of it. One headline hypothesis was refuted; five
+real defects were found and fixed, and the most serious was a claim the A21 pull
+request had already made in writing.
+
+**A21 advertised both URLs after promising one.** `sitemap.xml.ts` and
+`sitemap.astro` both filtered landing pages on `is_active` alone. A page that
+had taken over its product's page was therefore listed under its own slug —
+which answers `308` — beside the product URL it redirects to. The machine-
+readable sitemap handed Google exactly the duplicate pair the takeover exists to
+prevent, and the HTML sitemap badged a bouncing link "Live". Both now exclude
+`is_product_page`, and a test pins the rule so a future edit cannot quietly drop
+it. Verified live in both directions: claimed, the slug is absent from both
+sitemaps; released, it returns.
+
+**`advertiser` could change what every visitor sees.** The new
+`set-product-page` action checked only `locals.admin`, and `/api/admin/
+landing-pages` is granted to `advertiser` — the role deliberately kept out of
+orders, shipping, settings and, in A19, commerce notifications. It could seize
+or release any product page. Restricted to owner and admin; verified from a real
+advertiser session, which now gets `403` on both claim and release while still
+listing and editing landing pages as before.
+
+**The order summary answered a different question than the table.** Found by the
+A20 review and older than A20: the summary cards and status chips hardcoded
+`WHERE shipping_status <> 'abandoned'` and ignored every filter. With a one-day
+range the table showed that day's three orders while TOTAL ORDER read 13 and
+NILAI ORDER summed the whole store — an operator reconciling a day's takings
+read an all-time figure as the day's. The cards now follow every filter; the
+chips follow all of them except the status they let you pick, because scoping
+them to it would zero the others and destroy the control. The "Semua" chip
+follows the chip scope for the same reason. Measured after: 17 Aug 10, 18 Aug 3,
+both 13, and the values sum exactly.
+
+**Two smaller ones.** A half-open analytics range (`?startDate=` with no end)
+skipped the 31-day cap and built an unbounded scan; both ends are now required.
+And `publicPathOf` fell back to the landing slug when `product_slug` was
+missing — `listLandingPages` swallows a products-table read failure, so that was
+reachable — handing the operator a redirecting address with no sign it was not
+canonical. It now refuses and says so.
+
+**Refuted, and worth recording.** The suspicion that the dashboard's 31-day cap
+was UI-only was wrong: `analytics.ts` enforces it server-side and gates
+`interval=hour` to a single day, so a crafted ten-year hourly request is already
+refused. Jakarta date handling was checked at the UTC boundary and is correct.
+The `x-adsbook-product-page` spoof lets a visitor skip the `308`, but canonical
+still resolves to the product URL and the route sets no CDN cache header — 
+untidy, not exploitable.
+
+**Verification.** `npm run check` 368 files / 0 errors · `npm test` 479 / 479
+(2 new: the sitemap exclusion, and the summary/chip scoping asserted on the SQL
+and bindings actually used) · `npm run build` complete. Every fix was also
+exercised against a running install, and the test landing page and advertiser
+account were removed from the local database afterwards.
+
+## 2026-08-22 — A-133: native Astro landing pages, recorded in the CMS
+
+Asked for as the petanisejahtera model: build a landing page in Astro, deploy
+it, and still have the CMS know about it — its link listed, and available to
+become a product's default page.
+
+**One system, not two.** The obvious shape was a second table holding native
+product-page claims. That would have split the invariant that matters:
+`landing_pages` already carries a partial unique index guaranteeing at most one
+holder per product page, and a second claim path means checking two places and
+trusting them to agree. Native pages get a row in the same table, marked
+`source = 'native'`, so one index stays in charge and the A21 machinery works
+unchanged.
+
+**The file owns the page; the row owns only the operational state.**
+`src/data/native-landing-pages.ts` is a compiled manifest — Workers bundles
+routes and cannot enumerate `src/pages/` at runtime, so discovery was never an
+option. A reconcile runs on every landing-page list load and writes identity and
+metadata but never `is_product_page`: the claim is the operator's decision, not
+the file's. Withdrawing an entry deletes its row, and with it any claim, because
+a register entry without a file is a listing that 404s and a claim held by a page
+that no longer exists would leave `/produk/<slug>` pointing at nothing.
+
+**It closed a hazard documented the day before.** `landing_pages.slug` is
+UNIQUE, so a registered native page can no longer be shadowed by an operator
+creating a CMS page on the same slug — which Astro would have resolved to the
+file, silently, with no warning anywhere.
+
+**The redirect had to live in middleware.** A native route is a real file and
+never reaches the `[slug].astro` catch-all that redirects a claimed CMS page, so
+that is the only place that sees it. It is ordered to stay cheap: the compiled
+register rules a path out in memory before any database read. It also skips when
+the request carries `x-adsbook-product-page`, because that header is how
+`/produk/<slug>` hands off — redirecting a hand-off is exactly the loop A21 paid
+for once already.
+
+**Two things the UI would have got wrong.** A native row's id does not start
+with `static:`, so the list offered Edit and Delete buttons that the API refuses
+with `409` — actions that could only fail. Read-only is now keyed on
+file-backed, not on the static prefix. But the same predicate gated the
+product-page toggle, which would have hidden the one action a native page most
+needs; that stayed on its own condition. Native pages also got their own source
+badge and filter rather than being invisible under every existing one.
+
+**Canonical is a database question.** A native route cannot know whether an
+operator has handed it a product page, and declaring its own slug in that state
+points search engines at a URL that bounces back to the page they are on.
+`nativeLandingCanonicalPath` answers it; the sample uses it and the doc requires
+it.
+
+**A test of mine was wrong, and the code was right.** The first reconcile test
+asserted through `listLandingPages`, which reconciles against the register the
+build actually ships — correctly deleting a row the test had injected by hand.
+The tests now read by id.
+
+**Verification.** `npm run check` 369 files / 0 errors · `npm test` 489 / 489
+(10 new) · `npm run build` complete. Exercised end to end against a running
+install with a temporarily registered page: listed in the admin with its product
+resolved from `productSlug` and a Native Astro badge; claimed, `/produk/<slug>`
+rendered it with the product canonical and no redirect while its own slug
+answered exactly one `308` and left both sitemaps; released, both URLs stood
+alone again; withdrawing the register entry removed the row with no manual step.
+Edit and delete were refused `409`. The temporary entry and every test row were
+removed afterwards.
+
+## 2026-08-22 — Release 1.3.0 `2026.08-landing`
+
+The version had not moved since `1.2.0` while four features and a round of audit
+fixes landed on top of it, so the number the admin sidebar shows an operator was
+no longer the software they were running. Bumped per `RELEASE.md` §4.
+
+Minor, not major: everything below adds behaviour, and no install has to change
+anything it already does. Migrations `0045`–`0047` apply forward on their own.
+
+- **A19** operator notifications for a new order, a missed-order lead, and a
+  cleared payment, with per-operator read state.
+- **A20** one date-range control across the dashboard, order list, and shipping
+  workspace, with an explicit start/end range and no date-picker dependency.
+- **A21** a landing page may become the product page, answering at
+  `/produk/<product-slug>` while its own slug redirects there.
+- **A-133** native Astro landing pages recorded in the CMS: listed, linkable,
+  claimable, never editable.
+- Fixes: kecamatan search no longer calls the provider on every keystroke; an
+  address text edit invalidates a stale `destination_area_id`; both sitemaps
+  stop advertising a claimed page's redirecting slug; only owner and admin may
+  claim a product page; the order summary and chips follow the active filters;
+  a half-open analytics range can no longer skip the 31-day cap.
+
+`releaseTag` moves from `2026.08-hardened` to `2026.08-landing` because the tag
+names what a release is about and this one is about landing pages.
+
+**Correction made while bumping.** `RELEASE.md` §4 still recorded
+`schemaVersion` as `44` and described the tree as holding `0000`–`0043`; it holds
+48 and `0000`–`0047`. The section carries a warning about a previous version of
+itself declaring a false drift, which is exactly the failure it had drifted back
+into — a stale registry is the one that gets trusted and acted on.
+
+**Verification.** `npm run check` 369 files / 0 errors · `npm test` 489 / 489 ·
+`npm run build` complete. `src/lib/version.ts` and `package.json` are in step.
+
+## 2026-08-22 — A landing-page index, and a home page that stops listing everything
+
+Asked for together: cap the landing-page list on the home page, and give
+landing pages an index of their own shaped like `/produk`, with load-more.
+
+**The home page is a summary, not an index.** `LandingPagesSection` rendered
+every active landing page with no ceiling, so a store running fifteen
+campaigns had fifteen rows stacked under the catalogue. It now shows five and
+hands off to `/landing-page` with a "Lihat semua halaman" link when there are
+more. Five is the component's default; the template can pass another.
+
+**`/landing-page` mirrors `/produk`.** Ten initially, load-more in steps of ten,
+the same intro, the same empty state, the same button. Not a new pattern — the
+product index already had the right one, so it was copied rather than
+reinvented.
+
+**It must not write.** The admin list calls `listLandingPages`, which reconciles
+the native register into the table — a write — before reading. A storefront
+request must not mutate the store, so `listPublicLandingPages` is a separate,
+read-only reader. The cost is one gap: a native page deployed but never opened
+in the CMS is unlisted until an operator loads the landing-page list once. That
+is the right trade; the alternative was every public page view touching the
+database.
+
+**The link follows the takeover.** A claimed page's own slug answers `308`, so
+listing it would send every visitor through a redirect. The public reader joins
+`products` and emits `/produk/<slug>` for a claimed page, its own slug
+otherwise, and a test pins both.
+
+**Verification.** `npm run check` 370 files / 0 errors · `npm test` 490 / 490
+(1 new) · `npm run build` complete. Exercised against a running install seeded
+with thirteen landing pages: `/landing-page` rendered all thirteen with three
+hidden, the counter read 10 of 13, and the load-more button was present; the
+home page listed exactly five with the "Lihat semua halaman" link to
+`/landing-page`. Seed rows removed afterwards.
+
+Also in this pass, for local development only: the dev server now binds to the
+Tailscale address so the admin can be opened from a phone on the tailnet, and
+the local owner account is `ongki`. Neither touches the product; the local D1
+under `.wrangler/` is not tracked.
+
+## 2026-08-22 — Full-system screening: every form, the hybrid decision, the payment gateway
+
+Asked for after the day's merges: prove the forms work, the hybrid logic works,
+the payment gateway works, and the system as a whole runs. Two review agents
+took the checkout paths and the admin surfaces in parallel; the payment gateway
+and the hybrid decision were driven by hand against the running install on the
+Tailscale address. Every row created was removed afterwards, with reserved stock
+restored.
+
+**The payment gateway works end to end.** A real QRIS order went through
+`/api/submit-order`, reached AutoLaris, and came back: the order landed in D1 as
+`payment_status = pending`, a `payment_transactions` row was written with the
+provider's transaction id **set**, the fee policy computed 15.392 + 108 admin
+fee = 15.500 with the seller bearing it, and one `order` notification was
+recorded. `/api/order-status` then returned the pending QR payload for the
+right order and status token, refused a wrong token with `404`, and exposed no
+customer phone or address. `/payment` is deliberately stateless in its URL: it
+`303`s to itself to strip `order`/`token` from the address bar and loads the
+order from `sessionStorage` plus that endpoint — which looked like a redirect
+bug for one minute and is the opposite.
+
+**Every submit guard held.** Honeypot → `HONEYPOT_TRIGGERED`. Stale
+`shipping_cost` → `SHIPPING_QUOTE_CHANGED` with the real fare. Invalid phone →
+`VALIDATION_ERROR`. A replayed `submit_token` → `DUPLICATE_SUBMIT`, and D1 held
+exactly one row for it. COD addressed to Papua → `COD_NOT_AVAILABLE_FOR_REGION`
+**server-side**, ignoring whatever the browser sent. The short form refused an
+excluded-province visitor with `AREA_REQUIRES_FULL` and — the layer that
+matters — refused a Java visitor whose address text mentioned Papua, because
+the address is what gets delivered, not the geo-IP. Headless `/api/v1/checkout`
+refused a missing key (`API_KEY_REQUIRED`) and a bogus one (`API_KEY_INVALID`).
+Abandoned leads: created once, updated on repeat, one `lead` notification.
+
+**The hybrid decision works, and the dev box is an excluded province.** Every
+page request resolved to `full` regardless of the geo headers sent, which read
+as a defect until the resolver was traced: `request.cf` outranks headers, the
+dev server fills it from the machine's real IP, that is Jawa Timur, and this
+store's policy excludes `JI`. Removing `JI` from the policy flipped the page to
+`middle` at once. The pure resolver was also checked directly: `JK/JB/JT →
+middle`, `PA/AC/JI → full`, unknown → `full`, failing closed.
+
+**Admin: every page and API answered, every role gate held.** Owner reached all
+pages and APIs; `advertiser` got `403` on orders, shipping, notifications,
+reconciliation and the product-page claim; `customer_service` got `403` on
+settings and reconciliation and `200` on orders; unauthenticated got `401` on
+every API and a redirect on every page. Health reported `1.3.0`,
+`2026.08-landing`, schema 48 applied and matched. Cancelling an order restored
+stock exactly once; cancelling it again changed nothing.
+
+**One real defect, fixed.** `/api/form-config` cached the COD-province policy in
+KV for five minutes while the storefront page read it from D1 on every request.
+An operator's change was live on the page at once and stale on the endpoint —
+two surfaces disagreeing about one setting. Not a safety issue (the submit-time
+guard is uncached and authoritative), but wrong. The policy's write route now
+drops the cache entry on save; verified live, the endpoint flipped from `full`
+to `middle` the instant `JI` was removed. The key moved to its own module,
+`store-config-cache.ts`, because importing it from the page route pulled that
+route's dependency graph into the admin route and into its test — which is how
+a latent extension-less import in `form-config.ts` surfaced and broke
+`courier-bootstrap.test.ts` for one commit.
+
+**Three `500`s that were not defects.** `/admin/orders`, `/admin/shipping` and
+`/admin/payments` failed on a stale Vite dependency cache after A20 changed
+which components import `ui/select`; `npm run build` passed on the same tree.
+Restarting the dev server with `node_modules/.vite` cleared fixed all three.
+
+**Verification.** `npm run check` 370 files / 0 errors · `npm test` 492 / 492
+(2 new) · `npm run build` complete, plus everything above against the running
+install. No production credential, deployment or remote D1 was touched; the
+QRIS order used the install's configured AutoLaris key and was deleted.
+
+## 2026-08-22 — The dashboard's "Omset" was not revenue, and the default period moved to this month
+
+An adversarial audit of the dashboard, run after the full-system screening,
+found that its headline number could not be trusted.
+
+**"Omset Rp 1.668.642 — Pendapatan pada periode aktif" on a store with zero
+paid orders.** `analytics.ts` summed `total_amount` over every non-abandoned
+order: the one that was cancelled (Rp 135.000), three whose online payment
+had failed (Rp 405.000), seven still pending, and all of their shipping
+(Rp 107.550) and COD fees. The label said revenue; the number was order intent
+plus courier fees including orders that would never pay. An operator reading
+it as money in the bank would have been wrong by the whole amount.
+
+**Two ratios had the wrong base.** "Pembayaran berhasil" divided prepaid
+success by *every* order, COD included — and COD is paid on delivery, so it
+can never prepay. A COD-heavy store read as a failing gateway forever.
+"Return to Sender" divided returns by every order including ones never
+dispatched, which cannot be returned, so it read 0% on any store that had not
+shipped yet.
+
+**The fix is to say what each number is, not to pick a flattering one.**
+`total_revenue` now excludes cancelled orders and released payments
+(`cancelled`/`refunded`/`failed`, matching `order-lifecycle.ts`) and the card
+calls it order value, beside a new `collected_revenue` that counts paid orders
+only — on the local store: Rp 1.128.642 in play, Rp 0 received. "Pesanan"
+states how many of its count were cancelled or failed. The payment card is now
+"Pembayaran online lunas" with its base shown ("dari 11 order non-COD"), and
+RTS is returned ÷ (delivered + returned) with the base shown or "Belum ada
+kiriman yang selesai". Three tests pin each definition with the before and
+after number in the assertion.
+
+**Default period is this month.** The question an operator opens the dashboard
+with is "how is this month going"; a rolling seven days answers a different one
+and changes shape every day. `ADMIN_DEFAULT_DATE_FILTER` is the single source;
+the "(Default)" suffix baked into the 7-day preset label was removed, because a
+label that names the default lies the moment the default moves — the control
+marks the active preset itself.
+
+**Two things that looked broken and were not.** Every island on the dashboard
+failed to hydrate and the page rendered empty: a stale Vite pre-bundle after the
+day's import changes, fixed by restarting with `--force`, and recorded here so
+the next person does not debug the product for it. And the hybrid form
+resolving to `full` for every request was Cloudflare geo placing the dev
+machine in an excluded province — correct behaviour, confirmed by the screening.
+
+**Verification.** `npm run check` 370 files / 0 errors · `npm test` 495 / 495
+(3 new) · `npm run build` complete. Driven in a real browser at 1280 px and
+390 px: the trigger opens on "Bulan ini", the cards carry their new bases, the
+metric grid resolves to two 180.5 px columns on a phone with zero horizontal
+overflow, and the console is empty.
+
+## 2026-08-22 — Dashboard follow-ups: the axis that repeated itself, the chart that skipped time, the badge that denied data
+
+Three smaller findings from the same dashboard audit, fixed after the figures
+were.
+
+**The Y axis printed "Rp1jt, Rp1jt, Rp1jt, Rp0jt, Rp0jt".** The formatter
+rounded every tick to whole millions, so a store whose omset sits in the
+hundreds of thousands got five labels carrying two values. `compactRupiah`
+now scales per tick — "Rp1,4jt", "Rp700rb", "Rp0" — and every label on the
+local store is distinct. The first cut clipped "Rp700rb" to "p700rb":
+Recharts defaults the axis to 60 px, sized for the old labels, and the new
+ones were wider. Widened to 72 px and measured against the chart edge
+afterwards. (The very first edit set it to 58 — narrower than the default that
+was already clipping. Caught before it was tested, recorded because it is
+exactly the kind of mistake that survives when a number is typed without
+checking which direction it needs to move.)
+
+**The all-time trend skipped every empty day.** The grouped query only returns
+days that have orders, and the all-time branch pushed those rows as-is, so a
+fortnight with orders on two days drew two adjacent bars and silently
+discarded the twelve days between them. The span between the first and last
+order is now filled with zero buckets, the same way the ranged branches
+already did.
+
+**AutoLaris read "Belum ada data" beside eleven transactions.** An integration
+that had accepted requests but seen no manual confirmation yet was classified
+`unknown`, and the badge for `unknown` says there is no data. There is data;
+what has not happened is an operator step the reason text already names. That
+state is now `healthy`. The test covering it was titled "nobody paid today,
+not an outage" and asserted `unknown` only because no truer state existed —
+its own intent is better served by the new assertion.
+
+**Verification.** `npm run check` 370 files / 0 errors · `npm test` 495 / 495
+· `npm run build` complete. In the browser at 1280 px: five distinct axis
+labels, none clipped; both bars present; the AutoLaris panel badged "Sehat".
+
+## 2026-08-22 — The chart disagreed with the card above it
+
+An adversarial review of the dashboard PRs, run the moment they merged, found
+that #46 had fixed half of a number.
+
+**"Omset" said Rp 1.128.642; the bars beneath it summed to Rp 1.668.642.** The
+summary query had been given the released-order exclusion and the trends
+query had not, so the chart still drew the cancelled order and the three
+failed payments the card was fixed to leave out — Rp 540.000 of disagreement
+between two figures six centimetres apart. An operator adding up the bars got
+the number the previous entry declared untrustworthy. The rule now lives in
+one expression, `RELEASED_ORDER`, read by both queries, and a test asserts
+`sum(trends) === total_revenue` so the two cannot drift again. Proven live
+after: both read 1.128.642.
+
+**A returned order still counted as omset.** `order-lifecycle.ts` releases
+stock on `returned` as well as `cancelled` — the goods came back and the COD
+money never arrived — but the exclusion only named `cancelled`. On a COD
+store RTS is the whole reason the dashboard exists; ten orders with four
+returned would have overstated omset by 40% and called all ten "aktif".
+`returned` is in the predicate now, and the test seeds one.
+
+**"Diterima" was gross.** `collected_revenue` summed `total_amount`, which
+carries shipping and the COD service fee — courier pass-through, not the
+merchant's. It is now net of both, and the card says "bersih diterima".
+
+**"Pesanan" now headlines active orders.** Asked and decided: the big number
+is orders still in play, consistent with Omset beside it; what came in and
+dropped out is the note ("Dari 13 masuk · 4 batal/gagal/retur").
+
+**Refuted and recorded.** The all-time zero-fill has no timezone seam — the
+walker does calendar arithmetic on the Jakarta-bucket string and never
+converts it. `healthy` for an accepting AutoLaris hides nothing: alert
+webhooks only ever carried `schema` and `capi-outbox`, the failed-in-window
+count renders regardless of state, and all-requests-failing still reads
+`degraded`. Opening on the 1st of the month at 00:30 WIB yields a one-day
+ranged series and one bar.
+
+**Verification.** `npm run check` 370 files / 0 errors · `npm test` 496 / 496
+(1 new) · `npm run build` complete · live: chart total equals card total,
+9 of 13 orders active.
+
+## 2026-08-22 — The date filter became a two-month calendar
+
+Asked for with a screenshot of Facebook Ads Manager's date picker and "make it
+precise like this, everywhere, default this month". The default had already
+moved; this is the calendar.
+
+**A custom two-month grid, no library.** The repository carries no date
+dependency and the earlier `AdminDateRangeFilter` used native `<input
+type="date">` — the right default when nobody had asked for a calendar. Having
+been shown the exact reference, that trade is reversed here: the picker now
+renders two adjacent months of a real day grid. The calendar arithmetic —
+month grids, month shifting with year rollover, inclusive range membership —
+is pure string math in the Jakarta calendar, added to `admin-date-filter.ts`
+and unit-tested (no DOM, no timezone touches a value), so the component stays
+thin over tested logic.
+
+**Nothing downstream changed.** The `onChange` contract is still
+`{filter, start, end}`, so the dashboard, order list and shipping workspace —
+all three already consuming the component — got the calendar with no wiring
+edit and no API change. Verified live on all three: the same two-month grid,
+Sunday-first weekday headers, the preset rail with the active one checked,
+today ringed, future days disabled, and the span cap enforced per-day while an
+end is being chosen.
+
+**Faithful to the reference, minus Compare.** Preset rail left, two months
+right, prev/next navigation, the picked range shown as two read-only date
+boxes, Batal/Terapkan, and a "waktu Jakarta (WIB)" note. Compare (period vs.
+period) was deliberately skipped — the order and shipping lists have no
+period-comparison to show and the dashboard's would need the API to return two
+periods; it is a phase of its own, not dead UI here.
+
+**Mobile shows one month.** Two months do not fit 390 px, so the second is
+`hidden sm:block` and the arrows navigate — verified at 390 px with the range
+highlighting intact and zero horizontal overflow.
+
+**Verification.** `npm run check` 375 files / 0 errors · `npm test` 499 / 499
+(3 new on the calendar helpers) · `npm run build` complete. Driven in a real
+browser: selecting 10–18 Agu highlighted exactly nine cells with filled
+endpoints, the boxes read "10 Agu 2026 – 18 Agu 2026", Terapkan set the trigger
+to "10/08/2026 – 18/08/2026", and the console was empty at 1280 px and 390 px.
+
+## 2026-08-23 — A valid phone number the checkout called invalid
+
+Reported: a real Indonesian mobile of 13 digits in 0-form was rejected. It was,
+and the length rule was split across two disagreeing validators.
+
+**The numbering, stated once.** An Indonesian mobile is `62` `8`
+`<operator><subscriber>`. In 62-form it is 9–14 digits; in 0-form 8–13 (the
+0-form is always one shorter, since `0` expands to `62`). Thirteen-digit
+0-form numbers are current and common.
+
+**Two rules, neither right.** `isValidWa62` — the check the browser forms and
+the abandoned-lead capture call — was `628(operator)\d{5,8}`, which tops out at
+a 12-digit 0-form and refused the 13-digit one before the buyer could even
+submit. The checkout schema and the admin order edit used a different regex,
+`(08|628)\d{8,11}`, which reached 13 digits but performed no operator-prefix
+check at all. So the two boundaries disagreed on length and on whether the
+carrier was even validated.
+
+**One rule now.** `INDONESIAN_WA_REGEX` becomes `628(operator)\d{4,9}` —
+0-form 8–13, 62-form 9–14 — keeping the operator allowlist, which already
+covers every Indonesian carrier (Telkomsel, Indosat, XL, Axis, Three,
+Smartfren). The checkout schema and the admin edit now call `isValidWa62` on
+the already-normalized value instead of their own regex, so checkout, the
+browser forms, lead capture and admin edits validate one way. Checkout gains
+the operator check it never had; every path gains the 13-digit length.
+
+**Verified live.** At the checkout endpoint: a 13-digit 0-form order
+succeeded and stored as its 14-digit 62-form (`0812345678901` →
+`62812345678901`); an 8-digit number (the floor) succeeded; a 7-digit one and
+a bad operator prefix (`0800…`) and a 15-digit one were each refused with the
+phone message. On the browser form the 13- and 12-digit numbers showed no
+error where the 7-digit one did — the submit path no longer dies on a real
+number.
+
+**Verification.** `npm run check` 375 files / 0 errors · `npm test` 503 / 503
+(4 new: the 13-digit fix, the 8–13 boundary, per-carrier samples, cross-path
+agreement) · `npm run build` complete. Test orders removed and stock restored.
