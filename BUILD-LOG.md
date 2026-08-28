@@ -4609,3 +4609,13 @@ again returned `200`.
   `npm run check` 399 files clean and a Cloudflare build. Local `wrangler dev`
   against a seeded store whose only variant carries `stock = 0`: the product
   page renders and offers it.
+
+### Entry 89: 2026-08-28 — Release 11 Beauty of Angel native landing pages, standalone hero layout, and Meta Ads signal engine
+
+- **11 BOA Native Landing Pages.** Parsed all 11 Beauty of Angel markdown source assets from `/Users/ongki/Downloads/boa md` into dedicated, high-converting native landing pages:
+  - Lip Serum: `/lip-serum` (main), `/lip-serum-b3`, `/lip-serum-b6`, `/lip-serum-b7`, `/lip-serum-b8`, `/lip-serum-b11`, `/lip-serum-b12` (bound to product `lip-serum`, ID `25411`).
+  - Glow Soap: `/glow-soap` (main), `/glow-soap-b3`, `/glow-soap-b7`, `/glow-soap-b8` (bound to product `glowsoap`, ID `91389`).
+- **Standalone Hero & Seamless Feature Galleries.** Separated standalone hero product showcase from downstream feature/infographic galleries, ensuring zero-gap seamless image stacking (`p-0 m-0 leading-none`), frameless presentation, and natural aspect ratios.
+- **Meta Pixel & CAPI Synchronous Invariant.** Standardized `MetaPixelBase.astro` with synchronous `<head>` stub and immediate async loader so Meta Pixel Helper detects the active pixel immediately.
+- **Complete Funnel Tracking.** Full signal engine coverage (`PageView` -> `ViewContent` -> `AddToCart` -> `InitiateCheckout` -> `Purchase`) with canonical event deduplication via `order_number` and merchandise-only conversion values.
+- **Evidence.** `npm test` 591/591 tests passed, `npm run build` clean, and Cloudflare Worker deployed to version `cda8802e-bc69-4dd4-9ed7-7303497efacc` serving all 11 live landing pages at HTTP 200 OK.
