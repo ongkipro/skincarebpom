@@ -32,6 +32,8 @@ const seoDescription =
   'Beauty Of Angel Lip Serum: melembabkan bibir kering, mengatasi pecah-pecah, dan mencerahkan warna bibir gelap menjadi pink alami. BPOM NA18220113176.';
 
 const heroImg = 'https://brdsg.com/img/800/bsohjhrbbsohzvntt8_2/LXUs8KGvh0VyCuaLXUQrf5RIQf79UfQByYwLzpr4QzvQ.jpg';
+const accentColor = 'rose';
+const brandInitial = 'BOA';
 
 const sectionTitle = 'text-[clamp(24px,6.8vw,30px)] font-extrabold leading-[1.18] tracking-tight text-slate-950 break-words';
 const body = 'text-[14.5px] sm:text-[15.5px] leading-relaxed text-slate-600';
@@ -60,7 +62,7 @@ const body = 'text-[14.5px] sm:text-[15.5px] leading-relaxed text-slate-600';
     <header class="sticky top-0 z-30 flex items-center justify-between border-b border-slate-200/80 bg-white/95 px-3.5 py-2.5 backdrop-blur-md">
       <div class="flex items-center gap-2 min-w-0">
         <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-rose-700 text-white font-bold text-xs shadow-sm">
-          BOA
+          {brandInitial}
         </div>
         <div class="flex flex-col min-w-0">
           <span class="text-[11.5px] sm:text-xs font-bold uppercase tracking-wider text-slate-900 leading-tight truncate">Beauty Of Angel Official</span>
@@ -145,7 +147,7 @@ const body = 'text-[14.5px] sm:text-[15.5px] leading-relaxed text-slate-600';
               <p class="text-xs text-slate-600 font-medium">Bisa Bayar di Tempat (COD) Seluruh Indonesia</p>
             </div>
             <span class="rounded bg-rose-600 text-white text-[10px] font-bold px-2 py-0.5 uppercase tracking-wide">
-              Diskon ${discount}%
+              Diskon {discount}%
             </span>
           </div>
 
