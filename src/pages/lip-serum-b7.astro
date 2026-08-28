@@ -1,0 +1,469 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import MetaLandingTracker from '../components/storefront/tracking/MetaLandingTracker.astro';
+import GeoIpResolvedForm from '../components/storefront/forms/GeoIpResolvedForm.astro';
+import RatingStars from '../components/storefront/shared/RatingStars.astro';
+import Icon from '../components/storefront/shared/Icon.astro';
+import { getStorefrontProduct } from '../lib/catalog';
+import { nativeLandingCanonicalPath } from '../lib/landing-pages';
+import '../styles/form-hybrid.css';
+
+export const prerender = false;
+
+const SLUG = 'lip-serum-b7';
+const PRODUCT_SLUG = 'lip-serum';
+
+const product = await getStorefrontProduct(Astro.locals, PRODUCT_SLUG);
+if (!product) return Astro.rewrite('/404');
+
+const rupiah = (value: number) =>
+  `Rp${Math.round(Number(value) || 0).toLocaleString('id-ID')}`;
+
+const cheapest = [...product.variants].sort((a, b) => a.price - b.price)[0] ?? null;
+const price = cheapest?.price ?? product.price ?? 69000;
+const comparePrice = cheapest?.comparePrice ?? product.comparePrice ?? 138000;
+const discount =
+  comparePrice > price ? Math.round((1 - price / comparePrice) * 100) : 50;
+
+const canonical = `${Astro.locals.tenant.siteUrl}${await nativeLandingCanonicalPath(Astro.locals, SLUG)}`;
+
+const seoTitle = 'Beauty Of Angel Lip Serum — Promo Spesial B7';
+const seoDescription =
+  'Beauty Of Angel Lip Serum: melembabkan bibir kering, mengatasi pecah-pecah, dan mencerahkan warna bibir gelap menjadi pink alami. BPOM NA18220113176.';
+
+const heroImg = 'https://brdsg.com/img/800/bsohjhrbbsohzvntt8_2/LT0or2I0GQhqCFyLTfWipXW8gKauYsQz6MduaJvRoWg.jpg';
+
+const sectionTitle = 'text-[clamp(24px,6.8vw,30px)] font-extrabold leading-[1.18] tracking-tight text-slate-950 break-words';
+const body = 'text-[14.5px] sm:text-[15.5px] leading-relaxed text-slate-600';
+---
+
+<BaseLayout
+  title={seoTitle}
+  description={seoDescription}
+  image={heroImg}
+  preloadImages={heroImg}
+  canonical={canonical}
+  hideHeader={true}
+  hideFooter={true}
+>
+  <main class="mx-auto min-h-screen w-full max-w-[480px] bg-white text-slate-950 shadow-2xl font-sans antialiased selection:bg-rose-200 overflow-x-hidden">
+    <!-- Meta Ads Tracking Pixel / CAPI -->
+    <MetaLandingTracker
+      slug={SLUG}
+      contentId={product.productId}
+      productId={product.productId}
+      contentName={product.productName}
+      price={price}
+    />
+
+    <!-- 1. TOP HEADER & VERIFIED STORE STRIP -->
+    <header class="sticky top-0 z-30 flex items-center justify-between border-b border-slate-200/80 bg-white/95 px-3.5 py-2.5 backdrop-blur-md">
+      <div class="flex items-center gap-2 min-w-0">
+        <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-rose-700 text-white font-bold text-xs shadow-sm">
+          BOA
+        </div>
+        <div class="flex flex-col min-w-0">
+          <span class="text-[11.5px] sm:text-xs font-bold uppercase tracking-wider text-slate-900 leading-tight truncate">Beauty Of Angel Official</span>
+          <span class="text-[9.5px] sm:text-[10px] font-semibold text-rose-700 flex items-center gap-1 truncate">
+            <svg viewBox="0 0 20 20" class="h-3 w-3 fill-rose-600 inline shrink-0" aria-hidden="true"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+            Toko Resmi Terverifikasi BPOM
+          </span>
+        </div>
+      </div>
+      <div class="flex shrink-0 items-center gap-1 rounded-full bg-rose-50 border border-rose-200/80 px-2 py-0.5 sm:px-2.5 sm:py-1 text-[10px] sm:text-[11px] font-semibold text-rose-900">
+        <span class="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+        Stok Siap Kirim
+      </div>
+    </header>
+
+    <!-- 2. TOP URGENCY STRIP -->
+    <div class="bg-gradient-to-r from-rose-700 via-pink-700 to-rose-800 px-3 py-2 text-center text-white shadow-inner">
+      <p class="text-[10.5px] sm:text-[11.5px] font-bold tracking-wide flex items-center justify-center gap-1 animate-pulse">
+        <span>🔥</span> PROMO SPESIAL PAKET HEMAT HARI INI
+      </p>
+    </div>
+
+    <!-- 3. HERO & PDP SHOWCASE SECTION -->
+    <section id="hero" class="bg-white pb-6 text-center">
+      <div class="px-4 sm:px-5 pt-6 sm:pt-8">
+        <div class="inline-flex items-center gap-1 rounded-full bg-rose-50 border border-rose-200 px-2.5 py-0.5 sm:px-3 sm:py-1 text-[10px] sm:text-[11px] font-bold tracking-wider text-rose-800 uppercase mb-3">
+          ✨ Daily Lip Serum Treatment
+        </div>
+
+        <h1 class="mx-auto max-w-[440px] text-[clamp(26px,7.2vw,32px)] font-extrabold leading-[1.18] tracking-tight text-slate-950">
+          Bibir Gelap & Pecah-Pecah? Kembalikan <span class="hl-brush">Pink Alami Merona!</span>
+        </h1>
+
+        <p class="mx-auto mt-3.5 max-w-[400px] text-[14.5px] sm:text-[15.5px] font-semibold leading-relaxed text-slate-700">
+          Serum pencerah dan pelembab bibir intensif dari <strong class="text-slate-950 font-bold">Beauty Of Angel</strong>. Kandungan bioaktif alaminya menutrisi lapisan bibir, menyamarkan warna gelap menahun, dan mengembalikan bibir kenyal sehat berseri.
+        </p>
+      </div>
+
+      <!-- Hero Product Media Box -->
+      <div class="mt-6">
+        <div class="relative overflow-hidden bg-slate-950">
+          <img
+            src={heroImg}
+            alt="Beauty Of Angel Lip Serum — Promo Spesial B7"
+            class="h-auto w-full object-cover"
+            width="1224"
+            height="1224"
+            loading="eager"
+            fetchpriority="high"
+            decoding="async"
+          />
+
+          <div class="absolute bottom-0 left-0 right-0 bg-slate-950/85 px-3 py-2.5 text-center backdrop-blur-sm">
+            <p class="text-[11.5px] sm:text-[12.5px] font-bold text-rose-300 flex items-center justify-center gap-1.5 leading-snug">
+              <Icon name="lucide:thumbs-up" class="h-3.5 w-3.5 text-rose-300 shrink-0" />
+              <span>98% pengguna merasakan perubahan positif sejak pemakaian hari pertama!</span>
+            </p>
+          </div>
+        </div>
+
+        <!-- Trust Stats Badges -->
+        <div class="mt-4 grid grid-cols-3 gap-2 px-3.5 sm:px-5 text-center">
+          <div class="rounded-xl border border-slate-200 bg-slate-50/80 p-2.5 shadow-sm">
+            <p class="text-[15px] font-black text-rose-900 leading-tight">5.0 ★</p>
+            <p class="text-[10px] font-medium text-slate-600 mt-0.5">10.000+ Terjual</p>
+          </div>
+          <div class="rounded-xl border border-slate-200 bg-slate-50/80 p-2.5 shadow-sm">
+            <p class="text-[15px] font-black text-rose-900 leading-tight">BPOM</p>
+            <p class="text-[10px] font-medium text-slate-600 mt-0.5">NA18220113176</p>
+          </div>
+          <div class="rounded-xl border border-slate-200 bg-slate-50/80 p-2.5 shadow-sm">
+            <p class="text-[15px] font-black text-rose-900 leading-tight">100%</p>
+            <p class="text-[10px] font-medium text-slate-600 mt-0.5">Original</p>
+          </div>
+        </div>
+
+        <!-- PDP Package Selector Cards -->
+        <div class="mx-3.5 sm:mx-5 mt-5 rounded-2xl border border-rose-300/80 bg-gradient-to-b from-rose-50/80 to-white p-3.5 sm:p-4 shadow-sm text-left">
+          <div class="flex items-center justify-between mb-3 border-b border-rose-200/60 pb-2.5">
+            <div>
+              <span class="text-[10.5px] font-bold uppercase tracking-wider text-rose-900">Pilihan Paket Hemat Promo</span>
+              <p class="text-xs text-slate-600 font-medium">Bisa Bayar di Tempat (COD) Seluruh Indonesia</p>
+            </div>
+            <span class="rounded bg-rose-600 text-white text-[10px] font-bold px-2 py-0.5 uppercase tracking-wide">
+              Diskon ${discount}%
+            </span>
+          </div>
+
+          <div class="space-y-2.5">
+            <!-- Paket Pilihan -->
+            {product.variants.map((variant, idx) => {
+              const isFirst = idx === 0;
+              return (
+                <a
+                  href="#checkout"
+                  class={`group flex items-center justify-between rounded-xl border ${isFirst ? 'border-2 border-' + accentColor + '-600 bg-white shadow-md' : 'border-slate-200 bg-white'} p-3 transition-all hover:bg-${accentColor}-50/40`}
+                >
+                  <div class="flex items-center gap-2.5 min-w-0">
+                    <div class={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${isFirst ? 'bg-' + accentColor + '-600 text-white text-xs font-bold' : 'border border-slate-300 text-transparent text-xs'}`}>
+                      {isFirst ? '✓' : '•'}
+                    </div>
+                    <div class="min-w-0">
+                      <div class="flex items-center gap-1.5 flex-wrap">
+                        <span class="text-[13px] font-extrabold text-slate-950">{variant.label}</span>
+                        {isFirst && (
+                          <span class="rounded-full bg-amber-400 text-slate-950 text-[9px] font-black px-1.5 py-0.2 uppercase">
+                            Terlaris
+                          </span>
+                        )}
+                      </div>
+                      {variant.comparePrice && variant.comparePrice > variant.price && (
+                        <p class="text-[11px] text-slate-500 line-through">{rupiah(variant.comparePrice)}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div class="text-right shrink-0">
+                    <span class={`text-[16px] font-black text-${accentColor}-900`}>{rupiah(variant.price)}</span>
+                  </div>
+                </a>
+              );
+            })}
+          </div>
+
+          <div class="mt-3.5 border-t border-rose-200/60 pt-2.5 flex items-center justify-between text-[11px] sm:text-xs font-semibold text-rose-950">
+            <span class="flex items-center gap-1">✓ Subsidi Ongkir Otomatis</span>
+            <span class="flex items-center gap-1">✓ Garansi Produk Asli</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    
+    <!-- 4. VISUAL PRODUCT GALLERY -->
+    <section class="border-t border-slate-100 bg-slate-50 px-3.5 sm:px-5 py-8">
+      <span class="mb-1.5 block text-[10.5px] font-medium uppercase tracking-[0.2em] text-rose-800 text-center">Keunggulan & Manfaat</span>
+      <h2 class={`${sectionTitle} mt-0.5 mb-6 text-center`}>Kenapa Harus Memilih Beauty Of Angel?</h2>
+
+      <div class="space-y-4">
+        
+        <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <img
+            src="https://brdsg.com/img/800/bsohjhrbbsohzvntt8_2/LmkSLnR6YDKvs9SLmkQgx1D21RSI6SIqyYrsvIXEfAg.jpg"
+            alt="Beauty Of Angel Detail Visual"
+            class="h-auto w-full object-cover"
+            loading="lazy"
+          />
+        </div>
+        <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <img
+            src="https://brdsg.com/img/800/bsohjhrbbsohzvntt8_2/LmkSLnR6YDKvs9SLmkVj30VwAmCjbQVOgbyRifyBOqw.jpg"
+            alt="Beauty Of Angel Detail Visual"
+            class="h-auto w-full object-cover"
+            loading="lazy"
+          />
+        </div>
+        <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <img
+            src="https://brdsg.com/img/800/bsohjhrbbsohzvntt8_2/LmIpa1inC8VRiQ0LmOTLTPF5OUGVWgRbexveh4Y4ABQ.jpg"
+            alt="Beauty Of Angel Detail Visual"
+            class="h-auto w-full object-cover"
+            loading="lazy"
+          />
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. SPESIFIKASI DETAIL PRODUK (PDP TABLE) -->
+    <section class="border-t border-slate-100 bg-white px-3.5 sm:px-5 py-8">
+      <span class="mb-1.5 block text-[10.5px] font-medium uppercase tracking-[0.2em] text-rose-800">Detail & Spesifikasi</span>
+      <h2 class={`${sectionTitle} mt-0.5 mb-4`}>Informasi Resmi Produk</h2>
+
+      <div class="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 shadow-sm text-xs space-y-3">
+        <div class="flex justify-between border-b border-slate-200/60 pb-2">
+          <span class="text-slate-500 font-medium">Nama Produk</span>
+          <span class="font-bold text-slate-900 text-right">{product.productName}</span>
+        </div>
+        <div class="flex justify-between border-b border-slate-200/60 pb-2">
+          <span class="text-slate-500 font-medium">Sertifikasi & Izin</span>
+          <span class="font-bold text-rose-800 text-right">BPOM NA18220113176</span>
+        </div>
+        <div class="flex justify-between border-b border-slate-200/60 pb-2">
+          <span class="text-slate-500 font-medium">Kemasan</span>
+          <span class="font-bold text-slate-900 text-right">5 ml / Botol Aplikator</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-slate-500 font-medium">Khasiat Utama</span>
+          <span class="font-bold text-slate-900 text-right">Mencerahkan & Melembabkan Bibir</span>
+        </div>
+      </div>
+    </section>
+
+    
+
+    <!-- 7. JAMINAN KEAMANAN & GARANSI RESMI -->
+    <section class="border-t border-slate-100 bg-[#F8FAFC] px-3.5 sm:px-5 py-8 sm:py-10 text-center">
+      <div class="mx-auto mb-3.5 flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center text-rose-600">
+        <Icon name="lucide:shield-check" class="h-10 w-10 sm:h-12 sm:w-12" aria-hidden="true" />
+      </div>
+      <p class="mb-1 text-[10.5px] font-medium uppercase tracking-[0.2em] text-rose-800">
+        Jaminan Keamanan Belanja
+      </p>
+      <h2 class="text-[clamp(24px,6.8vw,28px)] font-extrabold leading-[1.18] tracking-tight text-slate-950">
+        GARANSI 100% RESMI
+      </h2>
+      <p class="mx-auto mt-2 max-w-[340px] text-[13.5px] sm:text-[14.5px] leading-relaxed text-slate-600">
+        Belanja aman tanpa risiko. Order diproses resmi melalui formulir terverifikasi Skincare BPOM.
+      </p>
+
+      <div class="mt-6 space-y-3 text-left max-w-[380px] mx-auto">
+        <div class="flex items-start gap-3 bg-white p-3 sm:p-3.5 rounded-xl border border-slate-200 shadow-sm">
+          <span class="flex h-6 w-6 sm:h-7 sm:w-7 shrink-0 items-center justify-center bg-rose-100 text-rose-800 font-bold rounded-full text-[11px] sm:text-xs mt-0.5">
+            ✓
+          </span>
+          <div class="min-w-0">
+            <h3 class="text-[13.5px] sm:text-[14.5px] font-bold text-slate-900">100% Produk Original BPOM</h3>
+            <p class="text-[12px] sm:text-[13px] text-slate-600 mt-0.5 leading-relaxed">
+              Produk tersegel resmi dengan nomor izin edar BPOM RI dan Halal MUI.
+            </p>
+          </div>
+        </div>
+
+        <div class="flex items-start gap-3 bg-white p-3 sm:p-3.5 rounded-xl border border-slate-200 shadow-sm">
+          <span class="flex h-6 w-6 sm:h-7 sm:w-7 shrink-0 items-center justify-center bg-rose-100 text-rose-800 font-bold rounded-full text-[11px] sm:text-xs mt-0.5">
+            ✓
+          </span>
+          <div class="min-w-0">
+            <h3 class="text-[13.5px] sm:text-[14.5px] font-bold text-slate-900">Bisa Bayar di Tempat (COD)</h3>
+            <p class="text-[12px] sm:text-[13px] text-slate-600 mt-0.5 leading-relaxed">
+              Pesan sekarang tanpa rasa khawatir, bayar tunai ke kurir saat paket sampai di rumah Anda.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 8. FORM PEMESANAN RESMI (CHECKOUT SECTION) -->
+    <section id="checkout" class="border-t-8 border-slate-100 bg-white py-10 sm:py-12 scroll-mt-6">
+      <div class="px-4 sm:px-5 pb-6 text-center">
+        <div class="mx-auto mb-3.5 inline-flex items-center justify-center gap-1.5 rounded-full bg-rose-50 px-3 py-1 text-[10.5px] sm:text-[11px] font-bold uppercase tracking-[0.15em] text-rose-800 ring-1 ring-rose-200/60">
+          <Icon name="lucide:arrow-down" class="h-3.5 w-3.5" aria-hidden="true" />
+          Langkah Terakhir
+        </div>
+        <h2 class="mx-auto max-w-[340px] text-[clamp(25px,7vw,30px)] font-extrabold leading-[1.18] tracking-tight text-slate-950">
+          Lengkapi Data <span class="hl-brush">Pengiriman</span>
+        </h2>
+        <p class="mx-auto mt-2.5 max-w-[340px] text-[13px] sm:text-[14px] font-medium leading-relaxed text-slate-600">
+          Isi formulir di bawah ini dengan benar. <span class="text-slate-900 font-bold border-b-2 border-rose-200">Form otomatis menyesuaikan wilayah Anda</span> dan mengaktifkan promo subsidi khusus.
+        </p>
+      </div>
+
+      <!-- GeoIp Resolved Form Component -->
+      <GeoIpResolvedForm productSlug={product.slug} mode="hybrid" embedded={true} />
+    </section>
+
+    <!-- 9. FOOTER BRAND & LEGAL -->
+    <footer class="bg-slate-900 text-slate-400 px-4 py-7 text-center text-xs">
+      <div class="flex items-center justify-center gap-2 mb-2">
+        <div class="h-5 w-5 rounded-full bg-rose-600 text-white font-bold flex items-center justify-center text-[10px]">BOA</div>
+        <span class="font-bold text-white uppercase tracking-wider text-xs">Beauty Of Angel Indonesia</span>
+      </div>
+      <p class="text-[11px] text-slate-400 max-w-[360px] mx-auto leading-relaxed">
+        Hak Cipta © {new Date().getFullYear()} Beauty Of Angel. Seluruh hak cipta dilindungi undang-undang.
+      </p>
+      <div class="mt-3 flex flex-wrap justify-center gap-3 text-[11px] text-slate-400">
+        <a href="/kebijakan-privasi" class="hover:text-white underline">Kebijakan Privasi</a>
+        <span>•</span>
+        <a href="/syarat-ketentuan" class="hover:text-white underline">Syarat & Ketentuan</a>
+        <span>•</span>
+        <a href="/kontak" class="hover:text-white underline">Hubungi Kami</a>
+      </div>
+    </footer>
+
+    <!-- 10. STICKY FLOATING CTA BAR (COMPACT & AUTO-HIDE ON HERO & CHECKOUT) -->
+    <div
+      id="sticky-cta"
+      class="fixed bottom-3.5 left-1/2 z-50 w-[calc(100%-1.25rem)] max-w-[420px] -translate-x-1/2 translate-y-10 opacity-0 pointer-events-none transition-all duration-300 ease-out"
+    >
+      <button
+        type="button"
+        id="sticky-cta-btn"
+        class="relative flex w-full items-center justify-between gap-2 overflow-hidden rounded-2xl bg-gradient-to-r from-rose-800 via-rose-700 to-pink-800 py-2.5 px-3.5 sm:px-4 text-white shadow-xl shadow-rose-950/25 border border-rose-500/30 transition-transform active:scale-[0.98]"
+        aria-label="Pesan Lip Serum (COD)"
+      >
+        <!-- Shimmer sweep effect -->
+        <span class="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-[shimmer_2.5s_infinite]"></span>
+
+        <!-- Left: Live indicator + Action Label -->
+        <div class="flex items-center gap-1.5 sm:gap-2 relative z-10 min-w-0">
+          <span class="relative flex h-2 w-2 shrink-0">
+            <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-300 opacity-75"></span>
+            <span class="relative inline-flex h-2 w-2 rounded-full bg-rose-300"></span>
+          </span>
+          <span class="text-[12px] sm:text-[13.5px] font-extrabold tracking-wide uppercase whitespace-nowrap truncate">
+            Pesan Lip Serum (COD)
+          </span>
+        </div>
+
+        <!-- Right: Price badge + Down icon -->
+        <div class="flex items-center gap-1 relative z-10 bg-rose-950/60 rounded-xl px-2 py-1 border border-rose-400/20 shrink-0">
+          <span class="text-[11.5px] sm:text-[12.5px] font-black text-amber-300">{rupiah(price)}</span>
+          <Icon name="lucide:arrow-down" class="h-3 w-3 sm:h-3.5 sm:w-3.5 text-rose-200 animate-bounce-slow" />
+        </div>
+      </button>
+    </div>
+  </main>
+</BaseLayout>
+
+<style>
+  .hl-brush {
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+    padding-bottom: 0.14em;
+    background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20320%2024'%20preserveAspectRatio='none'%3E%3Cpath%20d='M3%2013C55%206%20120%2016%20182%2011S292%208%20317%2012L315%2020C252%2015%20150%2023%2072%2019S13%2021%205%2020C2%2017%202%2016%203%2013Z'%20fill='%23E11D48'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: center 100%;
+    background-size: 100% 0.32em;
+  }
+
+  @keyframes shimmer {
+    100% {
+      transform: translateX(100%);
+    }
+  }
+
+  @keyframes bounce-slow {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-2px);
+    }
+  }
+
+  .animate-bounce-slow {
+    animation: bounce-slow 2s infinite ease-in-out;
+  }
+</style>
+
+<script is:inline>
+  function initStickyCTA() {
+    const stickyCta = document.getElementById('sticky-cta');
+    const stickyBtn = document.getElementById('sticky-cta-btn');
+    const hero = document.getElementById('hero');
+    const checkout = document.getElementById('checkout');
+
+    if (!stickyCta || !checkout) return;
+
+    let isHeroVisible = true;
+    let isCheckoutVisible = false;
+
+    function updateVisibility() {
+      if (!isHeroVisible && !isCheckoutVisible) {
+        stickyCta.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-10');
+        stickyCta.classList.add('opacity-100', 'translate-y-0');
+      } else {
+        stickyCta.classList.add('opacity-0', 'pointer-events-none', 'translate-y-10');
+        stickyCta.classList.remove('opacity-100', 'translate-y-0');
+      }
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.target === hero) {
+            isHeroVisible = entry.isIntersecting;
+          }
+          if (entry.target === checkout) {
+            isCheckoutVisible = entry.isIntersecting;
+          }
+        });
+        updateVisibility();
+      },
+      {
+        root: null,
+        threshold: 0.05,
+      }
+    );
+
+    if (hero) observer.observe(hero);
+    observer.observe(checkout);
+
+    stickyBtn?.addEventListener('click', (e) => {
+      e.preventDefault();
+      checkout.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      try {
+        if (window.fbq) {
+          window.fbq('track', 'AddToCart', {
+            content_name: 'Beauty Of Angel Lip Serum — Promo Spesial B7',
+            content_ids: ['25411'],
+            contents: [{ id: '25411', quantity: 1, item_price: 69000 }],
+            content_type: 'product',
+            value: 69000,
+            currency: 'IDR',
+          });
+        }
+      } catch {}
+    });
+  }
+
+  if (document.readyState === 'complete') {
+    initStickyCTA();
+  } else {
+    window.addEventListener('load', initStickyCTA);
+  }
+</script>
