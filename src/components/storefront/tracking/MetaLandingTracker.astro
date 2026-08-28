@@ -1,12 +1,14 @@
 ---
 interface Props {
   slug: string;
-  contentId: string | undefined;
+  contentId?: string;
+  productId?: string;
   contentName: string;
   price: number;
 }
 
-const { slug, contentId, contentName, price } = Astro.props;
+const { slug, contentName, price } = Astro.props;
+const contentId = Astro.props.contentId || Astro.props.productId || '';
 ---
 
 <script is:inline define:vars={{ slug, contentId, contentName, price }}>
@@ -39,6 +41,7 @@ const { slug, contentId, contentName, price } = Astro.props;
           },
         });
       });
+
     const postMeta = (payload) => {
       fetch('/api/meta-event', {
         method: 'POST',
@@ -46,32 +49,46 @@ const { slug, contentId, contentName, price } = Astro.props;
         body: JSON.stringify(payload),
       }).catch(() => {});
     };
+
     const track = (eventName, eventId) => {
+      const numericPrice = Number(price || 1);
       const data = {
         content_name: contentName,
-        content_ids: contentId ? [contentId] : undefined,
+        content_ids: contentId ? [String(contentId)] : undefined,
+        contents: contentId
+          ? [
+              {
+                id: String(contentId),
+                quantity: 1,
+                item_price: numericPrice,
+              },
+            ]
+          : undefined,
         content_type: 'product',
-        value: Number(price || 1),
+        value: numericPrice,
         currency: 'IDR',
       };
+
       if (window.fbq) {
         window.fbq('track', eventName, data, { eventID: eventId });
       }
+
       postMeta({
         event_name: eventName,
         event_id: eventId,
         lp_name: slug,
-        product_id: contentId,
+        product_id: contentId || undefined,
         content_name: contentName,
-        value: Number(price || 1),
+        value: numericPrice,
         currency: 'IDR',
         content_type: 'product',
         event_source_url: window.location.href,
       });
+
       if (eventName === 'ViewContent') {
         pushGtmEcomEvent('view_item', {
           currency: 'IDR',
-          value: Number(price || 1),
+          value: numericPrice,
           item_id: contentId,
           item_name: contentName,
           event_id: eventId,
