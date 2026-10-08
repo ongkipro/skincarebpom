@@ -5,6 +5,7 @@ import {
 } from "../../lib/meta-order-context";
 import { hasClickId, readClickIdCookie, serializeClickIds } from "../../lib/click-ids";
 import { normalizePhoneNumber } from "../../lib/order-schema";
+import { isValidWa62 } from "../../lib/validation";
 import { getRuntimeEnv } from "../../lib/env";
 import { loadStoreCodDisabledProvinceCodes } from "../../lib/form-mode";
 import { resolveGeoLocation } from "../../lib/geo";
@@ -67,11 +68,16 @@ export const POST: APIRoute = async ({ request, locals }) => {
       400,
     );
   if (String(body.website || "").trim()) {
+    // Answered exactly like a generic invalid payload. Naming the control
+    // that caught it tells a bot which field to leave empty next time, which
+    // is the one thing a honeypot must never do. The hit stays countable
+    // server-side, where the attacker cannot read it.
+    console.warn('checkout-honeypot-triggered', { path: 'submit-middle-order' });
     return json(
       {
         success: false,
-        error: "Request tidak valid",
-        code: "HONEYPOT_TRIGGERED",
+        error: "Payload tidak valid.",
+        code: "VALIDATION_ERROR",
       },
       400,
     );
@@ -103,11 +109,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
       },
       422,
     );
-  if (!/^(08|628)\d{8,11}$/.test(customerPhone))
+  // The same operator + length rule as the full checkout (order-schema.ts);
+  // this endpoint used to keep its own, stricter regex.
+  if (!isValidWa62(customerPhone))
     return json(
       {
         success: false,
-        error: "Nomor HP harus berisi 10-13 digit (contoh: 081234567890)",
+        error: "Nomor WhatsApp / HP tidak valid. Contoh: 081234567890",
         code: "VALIDATION_ERROR",
       },
       422,

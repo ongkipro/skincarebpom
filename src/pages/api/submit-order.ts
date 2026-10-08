@@ -12,7 +12,7 @@ import {
   isCodBlockedForProvince,
   loadStoreCodDisabledProvinceCodes,
 } from "../../lib/form-mode";
-import { getRuntimeEnv } from "../../lib/env";
+import { getEnvValue, getRuntimeEnv } from "../../lib/env";
 import { buyerEmail } from "../../lib/autolaris-payment";
 import {
   checkRateLimit,
@@ -34,7 +34,7 @@ import {
   recordFailedPaymentAttempt,
   type AutoLarisPaymentRecord,
 } from "../../lib/autolaris-payment";
-import { getProviderConfig } from "../../lib/provider-config";
+import { autoLarisOrderRailGap, getProviderConfig } from "../../lib/provider-config";
 import { normalizePhone } from "../../lib/validation";
 
 export const prerender = false;
@@ -82,11 +82,16 @@ export const POST: APIRoute = async ({ request, locals }) => {
       400,
     );
   if (String(body.website || "").trim()) {
+    // Answered exactly like a generic invalid payload. Naming the control
+    // that caught it tells a bot which field to leave empty next time, which
+    // is the one thing a honeypot must never do. The hit stays countable
+    // server-side, where the attacker cannot read it.
+    console.warn('checkout-honeypot-triggered', { path: 'submit-order' });
     return json(
       {
         success: false,
-        error: "Request tidak valid",
-        code: "HONEYPOT_TRIGGERED",
+        error: "Payload tidak valid.",
+        code: "VALIDATION_ERROR",
       },
       400,
     );
@@ -135,10 +140,29 @@ export const POST: APIRoute = async ({ request, locals }) => {
       422,
     );
   }
-  if (data.payment_method !== "cod") {
+  // Manual transfer goes to the seller's own account and needs no provider.
+  if (data.payment_method !== "cod" && data.payment_method !== "manual_transfer") {
     try {
-      const provider = (await getProviderConfig(database, locals)).autolaris;
-      if (!provider.apiKey) {
+      // The same readiness /api/payment-methods reports, enforced here so a
+      // checkout that still offers QRIS/VA (a cached page, a direct POST) cannot
+      // create an order whose payment /submit is bound to refuse.
+      const [provider, store, warehouse] = await Promise.all([
+        getProviderConfig(database, locals).then((config) => config.autolaris),
+        database
+          .prepare("SELECT is_autolaris_enabled FROM stores ORDER BY id LIMIT 1")
+          .first<{ is_autolaris_enabled: number | null }>(),
+        database
+          .prepare("SELECT address FROM warehouses ORDER BY id LIMIT 1")
+          .first<{ address: string | null }>(),
+      ]);
+      const env = getRuntimeEnv(locals);
+      const gap = autoLarisOrderRailGap({
+        apiKey: provider.apiKey,
+        originId: getEnvValue("AUTOLARIS_ORDER_ORIGIN_ID", env),
+        destinationId: getEnvValue("AUTOLARIS_ORDER_DESTINATION_ID", env),
+        warehouseAddress: warehouse?.address,
+      });
+      if (gap || store?.is_autolaris_enabled === 0) {
         return json(
           {
             success: false,

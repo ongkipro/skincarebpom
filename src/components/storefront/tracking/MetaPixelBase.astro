@@ -18,76 +18,146 @@ const shouldRenderPixel = /^\d{5,25}$/.test(String(pixelId || '').trim());
 
 {shouldRenderPixel && (
   <>
+    {/* fbevents.js and the pixel config together cost roughly 220 KB from a
+        third-party origin, and the connection is only opened once the inline
+        loader runs. Warming DNS, TCP and TLS here removes that round trip from
+        the critical path. Rendered only when a pixel is actually configured. */}
     <link rel="preconnect" href="https://connect.facebook.net" crossorigin />
     <link rel="dns-prefetch" href="https://connect.facebook.net" />
     <script is:inline define:vars={{ pixelId, metaExternalIdCookie: META_EXTERNAL_ID_COOKIE }}>
-      // 1. Synchronously create Meta Pixel stub and inject script loader immediately
-      !(function (f, b, e, v, n, t, s) {
-        if (f.fbq) return;
-        n = f.fbq = function () {
-          n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
-        };
-        if (!f._fbq) f._fbq = n;
-        n.push = n;
-        n.loaded = !0;
-        n.version = '2.0';
-        n.queue = [];
-        t = b.createElement(e);
-        t.async = !0;
-        t.src = v;
-        s = b.getElementsByTagName(e)[0];
-        if (s && s.parentNode) {
-          s.parentNode.insertBefore(t, s);
-        } else {
-          b.head.appendChild(t);
-        }
-      })(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
+      void (async () => {
+        if (typeof window === 'undefined') return;
 
-      var readMetaCookie = function (name) {
-        var match = document.cookie.match(new RegExp('(^|;\\s*)(' + name + ')=([^;]*)'));
-        return match ? match[3] : '';
-      };
+        const createEventId = (prefix) => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const eventId = createEventId('pv');
+        window.__META_PAGEVIEW_EVENT_ID__ = eventId;
 
-      var externalId = readMetaCookie(metaExternalIdCookie);
-      if (!/^[a-f0-9]{32}$/.test(externalId)) {
-        try {
-          externalId = Array.from(crypto.getRandomValues(new Uint8Array(16)))
-            .map(function (byte) { return byte.toString(16).padStart(2, '0'); })
-            .join('');
-        } catch (e) {
+        const readCookieValue = (name) =>
+          document.cookie
+            .split('; ')
+            .find((row) => row.startsWith(`${name}=`))
+            ?.split('=')[1] || '';
+        let externalId = readCookieValue(metaExternalIdCookie);
+        if (!/^[a-f0-9]{32}$/.test(externalId)) {
           externalId = '';
-        }
-        if (externalId) {
-          var cookieSecurity = window.location.protocol === 'https:' ? 'SameSite=None; Secure' : 'SameSite=Lax';
-          document.cookie = metaExternalIdCookie + '=' + externalId + '; Path=/; Max-Age=7776000; ' + cookieSecurity;
-        }
-      }
-
-      var createPvEventId = function (prefix) {
-        return prefix + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-      };
-      var eventId = createPvEventId('pv');
-
-      window.__META_PAGEVIEW_EVENT_ID__ = eventId;
-      window.__META_PIXEL_ID__ = pixelId;
-
-      void (async function () {
-        var externalIdHash;
-        if (externalId && typeof crypto !== 'undefined' && crypto.subtle) {
           try {
-            var digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(externalId));
-            externalIdHash = Array.from(new Uint8Array(digest))
-              .map(function (byte) { return byte.toString(16).padStart(2, '0'); })
+            externalId = Array.from(crypto.getRandomValues(new Uint8Array(16)))
+              .map((byte) => byte.toString(16).padStart(2, '0'))
               .join('');
-          } catch (e) {}
+          } catch {
+            // Pixel and CAPI still carry fbp/fbc when Web Crypto is unavailable.
+          }
+          if (externalId) {
+            const cookieSecurity = window.location.protocol === 'https:'
+              ? 'SameSite=None; Secure'
+              : 'SameSite=Lax';
+            document.cookie =
+              `${metaExternalIdCookie}=${externalId}; Path=/; Max-Age=${90 * 24 * 60 * 60}; ${cookieSecurity}`;
+          }
         }
 
-        if (externalIdHash) {
-          window.fbq('init', pixelId, { external_id: externalIdHash });
-        } else {
-          window.fbq('init', pixelId);
+        let externalIdHash;
+        if (externalId) {
+          try {
+            const digest = await crypto.subtle.digest(
+              'SHA-256',
+              new TextEncoder().encode(externalId),
+            );
+            externalIdHash = Array.from(new Uint8Array(digest))
+              .map((byte) => byte.toString(16).padStart(2, '0'))
+              .join('');
+          } catch {
+            // Pixel and CAPI still carry fbp/fbc when Web Crypto is unavailable.
+          }
         }
-        window.fbq('track', 'PageView', {}, { eventID: eventId });
+
+        // Meta's own stub queues every fbq() call until the script arrives, so
+        // the queue is created now and the 105 KB download is deferred. The
+        // events, their order and their event IDs are unchanged; only the
+        // moment the network request happens moves off the critical path,
+        // where it and the pixel config were costing about 520 KB on a product
+        // page.
+        (function (f) {
+          if (f.fbq) return;
+          const n = (f.fbq = function () {
+            n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
+          });
+          if (!f._fbq) f._fbq = n;
+          n.push = n;
+          n.loaded = true;
+          n.version = '2.0';
+          n.queue = [];
+        })(window);
+
+        let requested = false;
+        const loadPixel = () => {
+          if (requested) return;
+          requested = true;
+          const script = document.createElement('script');
+          script.async = true;
+          script.src = 'https://connect.facebook.net/en_US/fbevents.js';
+          document.head.appendChild(script);
+        };
+        // The same escape hatch the Google leg has carried since it was
+        // deferred. A conversion must never wait on a timer: the stub queues
+        // the call, but nothing is sent until the library arrives, and on
+        // `/thanks` a buyer who reads the page and closes it never triggers
+        // the interaction listeners. Measured on the real library, pulling the
+        // download forward took the Purchase from 2522 ms to 45 ms.
+        window.__PS_LOAD_META_PIXEL__ = loadPixel;
+
+        // Whichever comes first. The interaction path covers anyone who stays;
+        // the timeout covers a visitor who reads and leaves without touching
+        // anything, so a bounce is still counted rather than traded away.
+        for (const type of ['pointerdown', 'keydown', 'touchstart', 'scroll']) {
+          window.addEventListener(type, loadPixel, { once: true, passive: true });
+        }
+        // A plain timer, deliberately. `requestIdleCallback` was tried first and
+        // does not defer anything: its `timeout` is a ceiling, not a floor, so
+        // on a page this light it fired at 245 ms and the download landed
+        // almost exactly where it had been.
+        window.setTimeout(loadPixel, 2500);
+
+        window.__META_PIXEL_ID__ = pixelId;
+
+        // `fbq('init', id, advancedMatching)` is honoured EXACTLY ONCE per
+        // pixel id. A later init with more keys is not merged and not an
+        // error — it is discarded in silence. Verified against the live
+        // library: after a second init carrying ph/fn/ln/ct/st/zp/country,
+        // `fbq.instance.pixelsByID[id].userData` still held only the
+        // `{external_id}` the first call had set.
+        //
+        // Three call sites init'd behind this one — MetaThanksTracker,
+        // form-hybrid, form-middle — so every advanced-matching object they
+        // built and hashed was thrown away, and the browser leg of a Purchase
+        // matched on one key where the server leg matched on eight. This
+        // component now owns the single init, and a page with better matching
+        // supplies it through `__PS_META_INIT__` instead of calling `fbq`.
+        let initialised = false;
+        const runInit = (advancedMatching) => {
+          if (initialised) return false;
+          initialised = true;
+          const matching = Object.assign({}, advancedMatching || {});
+          if (externalIdHash && !matching.external_id) matching.external_id = externalIdHash;
+          for (const key of Object.keys(matching)) {
+            if (matching[key] === undefined || matching[key] === '') delete matching[key];
+          }
+          if (Object.keys(matching).length) window.fbq('init', pixelId, matching);
+          else window.fbq('init', pixelId);
+          window.fbq('track', 'PageView', {}, { eventID: eventId });
+          return true;
+        };
+        window.__PS_META_INIT__ = runInit;
+
+        if (window.__PS_META_AWAIT_MATCHING__ === true) {
+          // The page declared it will supply matching (see `/thanks`, whose
+          // Purchase keys are only known after `/api/order-status` answers).
+          // The wait is bounded: a hung or failed fetch must cost the better
+          // matching, never the PageView itself.
+          window.setTimeout(runInit, 4000);
+        } else {
+          runInit();
+        }
       })();
     </script>
     <noscript>

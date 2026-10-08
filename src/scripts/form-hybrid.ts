@@ -7,7 +7,7 @@ import { paymentBrandAsset } from "../lib/payment-brand";
 
 import { formatDeliveryLocation, groupLocationResults } from "../lib/location-search";
 import { pushGtmEcomEvent } from "../lib/gtm";
-import { isValidWa62 } from "../lib/validation";
+import { isValidWa62, missingCheckoutContact } from "../lib/validation";
 import { normalizeProvinceCode } from "../lib/province";
 import { navigateAfterCheckout } from "../lib/checkout-navigation";
 import {
@@ -271,10 +271,10 @@ function initHybridOrderFormInstance(formRoot: HTMLElement) {
   >();
 
   const phoneInput = formRoot.querySelector(
-    "#hybrid-phone",
+    '[data-field="hybrid-phone"]',
   ) as HTMLInputElement | null;
   const districtInput = formRoot.querySelector(
-    "#district-search",
+    '[data-field="district-search"]',
   ) as HTMLInputElement | null;
   const districtList = formRoot.querySelector(
     "#district-list",
@@ -325,7 +325,7 @@ function initHybridOrderFormInstance(formRoot: HTMLElement) {
   ) as HTMLButtonElement | null;
   const submitButtonLabel = submitButton?.querySelector(".submit-main-label");
   const customerNameInput = formRoot.querySelector(
-    "#customer-name",
+    '[data-field="customer-name"]',
   ) as HTMLInputElement | null;
   const addressInput = formRoot.querySelector<HTMLTextAreaElement>(
     'textarea[name="address"]',
@@ -636,9 +636,16 @@ function initHybridOrderFormInstance(formRoot: HTMLElement) {
 
   const timerKey = `promo_end_${config.productSlug}_hybrid`;
   const now = Date.now();
-  const stored = Number(localStorage.getItem(timerKey) || 0);
+  // A storage that throws (blocked site data) must not take the order form
+  // down with a promo countdown; it just restarts per visit.
+  let stored = 0;
+  try {
+    stored = Number(localStorage.getItem(timerKey) || 0);
+  } catch {}
   const end = stored > now ? stored : now + 30 * 60 * 1000;
-  localStorage.setItem(timerKey, String(end));
+  try {
+    localStorage.setItem(timerKey, String(end));
+  } catch {}
 
   const getSelectedVariant = () =>
     form.querySelector<HTMLInputElement>('input[name="variant"]:checked');
@@ -680,24 +687,22 @@ function initHybridOrderFormInstance(formRoot: HTMLElement) {
     const hasPaymentChoices =
       Array.isArray(state.visiblePaymentOptions) &&
       state.visiblePaymentOptions.length > 0;
-    const hasName = Boolean(
-      customerNameInput && customerNameInput.value.trim().length >= 3,
-    );
-    const hasPhone = Boolean(phoneInput && phoneInput.value.trim().length >= 8);
-    const hasAddress = Boolean(
-      addressInput && addressInput.value.trim().length >= 3,
-    );
+    const missing = missingCheckoutContact({
+      name: customerNameInput?.value || "",
+      phone: phoneInput?.value || "",
+      address: addressInput?.value || "",
+    });
 
     if (state.submitting)
       return {
         disabled: true,
         label: submitButton.dataset.loadingLabel || "Memproses Pesanan...",
       };
-    if (!hasName)
+    if (missing === "name")
       return { disabled: true, label: "Lengkapi Nama Terlebih Dahulu" };
-    if (!hasPhone)
+    if (missing === "phone")
       return { disabled: true, label: "Lengkapi No. WA Terlebih Dahulu" };
-    if (!hasAddress)
+    if (missing === "address")
       return { disabled: true, label: "Lengkapi Alamat Terlebih Dahulu" };
     if (!state.locationId)
       return { disabled: true, label: "Lengkapi kecamatan dulu" };
@@ -2085,7 +2090,17 @@ function initHybridOrderFormInstance(formRoot: HTMLElement) {
       postal_code: state.selectedPostalCode || state.location.postal_code,
       guard_token: guardToken,
     };
-    sessionStorage.setItem("thanks_state", JSON.stringify(thanksState));
+    // The order already exists in D1 by this point, so nothing here may throw:
+    // a storage write that fails must not cost the buyer their confirmation.
+    // Safari's private mode has historically thrown on any write, and a browser
+    // set to block site data does the same. Unguarded, that stranded a buyer on
+    // the submitting spinner with a real order behind them — and because the
+    // CAPI Purchase is only ever triggered from `/thanks`, neither leg fired.
+    try {
+      sessionStorage.setItem("thanks_state", JSON.stringify(thanksState));
+    } catch {
+      // The fragment locator below carries the order on its own.
+    }
 
     const destinationPath =
       paymentMethodFinal !== "cod" &&
@@ -2102,11 +2117,13 @@ function initHybridOrderFormInstance(formRoot: HTMLElement) {
     // The payment locator rides in the URL fragment, which browsers never send
     // to a server or a referrer, so the instructions survive a lost tab or a
     // hand-off to another device without exposing the token to analytics.
-    navigateAfterCheckout(
-      destinationPath === "/payment"
-        ? `/payment#o=${encodeURIComponent(String(thanksState.order_pk ?? ""))}&t=${encodeURIComponent(String(thanksState.status_token ?? ""))}`
-        : destinationPath,
-    );
+    // Both destinations carry the locator, not just `/payment`. The fragment is
+    // never sent to a server or a referrer, which is why it was chosen for the
+    // payment instructions; `/thanks` needs the same carrier for the same
+    // reason — it is the only other page that must survive a lost tab or a
+    // storage write that never landed.
+    const locator = `#o=${encodeURIComponent(String(thanksState.order_pk ?? ""))}&t=${encodeURIComponent(String(thanksState.status_token ?? ""))}`;
+    navigateAfterCheckout(`${destinationPath}${locator}`);
   });
 }
 
