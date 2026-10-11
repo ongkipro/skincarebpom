@@ -44,11 +44,10 @@ const contentId = Astro.props.contentId || Astro.props.productId || '';
         value: numericPrice,
         currency: 'IDR',
       };
-
-      if (window.fbq) {
-        window.fbq('track', eventName, data, { eventID: eventId });
-      }
-
+      // Never the pixel's track call directly: this runs during body parse, before
+      // MetaPixelBase's single init has been issued, and fbevents discards a
+      // track it replays ahead of the init.
+      window.__PS_META_TRACK__?.(eventName, data, { eventID: eventId });
       postMeta({
         event_name: eventName,
         event_id: eventId,
