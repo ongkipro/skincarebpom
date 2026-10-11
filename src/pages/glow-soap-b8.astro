@@ -523,8 +523,9 @@ const body = 'text-[14.5px] sm:text-[15.5px] leading-relaxed text-slate-600';
       e.preventDefault();
       checkout.scrollIntoView({ behavior: 'smooth', block: 'start' });
       try {
-        if (window.fbq) {
-          window.fbq('track', 'AddToCart', {
+        // Ordered behind MetaPixelBase's single init (TRACKING_SPECS §4a).
+        if (window.__PS_META_TRACK__) {
+          window.__PS_META_TRACK__('AddToCart', {
             content_name: 'Beauty Of Angel Glow Soap — Promo Spesial B8',
             content_ids: ['91389'],
             contents: [{ id: '91389', quantity: 1, item_price: 89000 }],
