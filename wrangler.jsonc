@@ -45,10 +45,11 @@
   "workers_dev": false,
   // Hourly evaluation catches a stalled conversion outbox even when no operator
   // opens the dashboard. Alert transitions are deduplicated in the install's KV.
-  // Cron dilepas sementara: akun ini mentok batas 5 cron trigger di Workers
-  // Free, dan zanobyshop punya 2.997 baris outbox CAPI yang belum terkuras
-  // sementara toko ini masih 0. Kembalikan setelah upgrade Workers Paid.
-  // "triggers": { "crons": ["7 * * * *"] },
+  // Hourly housekeeping (CAPI retry, payment expiry, receiver scoring, purges).
+  // Restored 2026-11-01: the account now takes more than five cron triggers
+  // (eleven installs register one) and zanobyshop, which held the slot, is
+  // decommissioned.
+  "triggers": { "crons": ["7 * * * *"] },
 
 
   "assets": {
